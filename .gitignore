@@ -1,0 +1,5 @@
+*.sqlite*
+*.json
+*.tar
+vendor/
+deploy.sh
