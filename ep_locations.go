@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -51,6 +52,8 @@ func LocationsEndpoint(r *chi.Mux, db *sqlitemigration.Pool) {
 			conds := []string{}
 			args := []any{}
 
+			slog.InfoContext(ctx, "locations_query_params", slog.Any("req", request))
+
 			const tsFormat = "2006-01-02T15:04:05"
 			if request.From != "" {
 				from, err := time.ParseInLocation(tsFormat, request.From, time.UTC)
@@ -88,7 +91,8 @@ func LocationsEndpoint(r *chi.Mux, db *sqlitemigration.Pool) {
 			defer db.Put(conn)
 
 			var locs []LocationsResponse_Data
-			if err := sqlitex.Execute(conn, fmt.Sprintf(query, strings.Join(conds, " AND ")), &sqlitex.ExecOptions{
+			start := time.Now()
+			err = sqlitex.Execute(conn, fmt.Sprintf(query, strings.Join(conds, " AND ")), &sqlitex.ExecOptions{
 				Args: args,
 				ResultFunc: func(stmt *sqlite.Stmt) error {
 					var row LocationsResponse_Data
@@ -98,9 +102,12 @@ func LocationsEndpoint(r *chi.Mux, db *sqlitemigration.Pool) {
 					locs = append(locs, row)
 					return nil
 				},
-			}); err != nil {
+			})
+			dur := time.Since(start)
+			if err != nil {
 				return LocationsResponse{}, errors.Wrap(err, "query failed")
 			}
+			slog.InfoContext(ctx, "locations_query", slog.Duration("dur", dur))
 
 			return LocationsResponse{
 				Count:   len(locs),
